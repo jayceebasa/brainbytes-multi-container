@@ -186,17 +186,21 @@ export default function Profile() {
     try {
       setLoading(true);
 
-      // In a real app, this would be an actual API call
-      // await axios.put("http://localhost:3000/api/user", updatedUser);
+      // Include currentEmail in the request body
+      const updatedData = {
+        ...updatedUser,
+        currentEmail: user.email, // Pass the current email to identify the user
+      };
 
-      // Simulate API call
-      setTimeout(() => {
-        setUser(updatedUser);
-        setEditMode(false);
-        setLoading(false);
-        setNotification("Profile updated successfully");
-        setTimeout(() => setNotification(""), 3000);
-      }, 800);
+      // Send updated user data to the backend
+      const response = await axios.put("http://localhost:3000/api/users/me", updatedData);
+
+      // Update the frontend state with the response from the backend
+      setUser(response.data);
+      setEditMode(false);
+      setLoading(false);
+      setNotification("Profile updated successfully");
+      setTimeout(() => setNotification(""), 3000);
     } catch (error) {
       console.error("Error updating profile:", error);
       setLoading(false);

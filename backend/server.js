@@ -63,6 +63,32 @@ app.get("/", (req, res) => {
   res.json({ message: "Welcome to the BrainBytes API" });
 });
 
+app.put("/api/users/me", async (req, res) => {
+  try {
+    const { name, email, avatar, currentEmail } = req.body;
+
+    // Find the user by their current email
+    const user = await UserProfile.findOne({ email: currentEmail });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update the user's fields
+    user.name = name || user.name;
+    user.email = email || user.email;
+    user.avatar = avatar || user.avatar;
+
+    // Save the updated user
+    await user.save();
+
+    res.json(user);
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
 // Get all messages
 app.get("/api/messages", async (req, res) => {
   try {
