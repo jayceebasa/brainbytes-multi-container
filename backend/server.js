@@ -224,6 +224,121 @@ app.get("/api/materials", async (req, res) => {
   }
 });
 
+// Get current user profile
+app.get("/api/users/me", async (req, res) => {
+  try {
+    // In a real app, this would use authentication to get the current user
+    // For now, we'll create a mock user or get the first one
+    let user = await UserProfile.findOne();
+
+    // If no user exists, create a default one
+    if (!user) {
+      user = new UserProfile({
+        name: "John Doe",
+        email: "john.doe@example.com",
+        preferredSubjects: ["Math", "Technology"],
+        joinDate: new Date("2024-11-15"),
+      });
+      await user.save();
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get learning stats based on message history
+app.get("/api/users/stats", async (req, res) => {
+  try {
+    // Calculate stats from message collection
+    const allMessages = await Message.find();
+
+    // Group messages by subject
+    const subjectData = [];
+    const subjectCounts = {
+      Math: 0,
+      Science: 0,
+      History: 0,
+      Language: 0,
+      Technology: 0,
+      General: 0,
+    };
+
+    // Count user questions by subject
+    allMessages.forEach((message) => {
+      if (message.isUser) {
+        const subject = message.subject || "General";
+        if (subjectCounts.hasOwnProperty(subject)) {
+          subjectCounts[subject]++;
+        }
+      }
+    });
+
+    // Convert to array format for the frontend
+    Object.keys(subjectCounts).forEach((subject) => {
+      subjectData.push({
+        subject,
+        count: subjectCounts[subject],
+      });
+    });
+
+    // Calculate total questions and streaks
+    const totalQuestions = Object.values(subjectCounts).reduce((sum, count) => sum + count, 0);
+
+    // Get date of most recent user message
+    const lastMessage = await Message.findOne({ isUser: true }).sort({ createdAt: -1 });
+    const lastActiveDate = lastMessage ? lastMessage.createdAt : null;
+
+    // Simple streak calculation (mock data for now)
+    // In a real app, you'd calculate consecutive days of activity
+    const streak = 5; // Mocked for simplicity
+
+    res.json({
+      subjectData,
+      totalQuestions,
+      lastActive: lastActiveDate,
+      streak,
+    });
+  } catch (err) {
+    console.error("Error calculating stats:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/messages/subject/:subject", async (req, res) => {
+  try {
+    const { subject } = req.params;
+    let result;
+
+    // Special handling for General subject
+    if (subject === "General") {
+      // Delete messages that are explicitly "General" OR have null/missing subjects
+      // OR have subjects not in our predefined list
+      const validSubjects = ["Math", "Science", "History", "Language", "Technology", "General"];
+      result = await Message.deleteMany({
+        $or: [{ subject: "General" }, { subject: { $exists: false } }, { subject: null }, { subject: "" }, { subject: { $nin: validSubjects } }],
+      });
+    } else {
+      // For other subjects, do a case-insensitive match
+      result = await Message.deleteMany({
+        subject: new RegExp(`^${subject}$`, "i"),
+      });
+    }
+
+    console.log(`Deleted ${result.deletedCount} messages with subject: ${subject}`);
+
+    res.json({
+      message: `Deleted ${result.deletedCount} messages from subject: ${subject}`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (err) {
+    console.error("Error deleting messages:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

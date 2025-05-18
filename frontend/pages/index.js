@@ -36,8 +36,10 @@ export default function Home() {
       };
 
       response.data.forEach((message) => {
-        // Make sure the subject exists in our object, if not put it in General
-        const subject = messagesBySubject.hasOwnProperty(message.subject) ? message.subject : "General";
+        // Check if subject exists and is one of our predefined subjects
+        const validSubjects = ["Math", "Science", "History", "Language", "Technology", "General"];
+        const messageSubject = message.subject || "";
+        const subject = validSubjects.includes(messageSubject) ? messageSubject : "General";
         messagesBySubject[subject].push(message);
       });
 
@@ -115,6 +117,45 @@ export default function Home() {
         setNotification(`Switched to ${newSubject} conversation`);
         setTimeout(() => setNotification(""), 3000);
       }
+    }
+  };
+
+  const getUserMessageCountsBySubject = () => {
+    const userCounts = {};
+    Object.keys(conversationsBySubject).forEach((subject) => {
+      userCounts[subject] = conversationsBySubject[subject].filter((msg) => msg.isUser).length;
+    });
+    return userCounts;
+  };
+
+  const handleClearSubjectMessages = async (subject) => {
+    try {
+      // Confirm before deleting
+      if (!confirm(`Are you sure you want to clear all ${subject} messages? This cannot be undone.`)) {
+        return;
+      }
+
+      setLoading(true);
+
+      // Call API to delete messages for this subject
+      const response = await axios.delete(`http://localhost:3000/api/messages/subject/${subject}`);
+
+      // Update the local state to remove the cleared messages
+      setConversationsBySubject((prev) => ({
+        ...prev,
+        [subject]: [], // Clear the messages for this subject
+      }));
+
+      // Show notification
+      setNotification(`Cleared ${response.data.deletedCount} messages from ${subject}`);
+      setTimeout(() => setNotification(""), 3000);
+
+      setLoading(false);
+    } catch (error) {
+      console.error("Error clearing messages:", error);
+      setNotification(`Error: Could not clear ${subject} messages`);
+      setTimeout(() => setNotification(""), 3000);
+      setLoading(false);
     }
   };
 
@@ -206,7 +247,14 @@ export default function Home() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Add a small delay to ensure DOM updates are complete
+    const scrollTimer = setTimeout(() => {
+      if (messageEndRef.current) {
+        messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 100);
+
+    return () => clearTimeout(scrollTimer);
   }, [subjectFilter, conversationsBySubject]);
 
   // Load messages on component mount
@@ -243,16 +291,25 @@ export default function Home() {
         {notification && <div className="notification">{notification}</div>}
 
         <div className="subject-filters">
-          <button onClick={() => handleSubjectChange("")} className={!subjectFilter ? "active" : ""}>
-            All Conversations
+          <button className={`filter-btn ${subjectFilter === "" ? "active" : ""}`} onClick={() => handleSubjectChange("")}>
+            All ({[].concat(...Object.values(conversationsBySubject)).filter((msg) => msg.isUser).length})
           </button>
 
-          {Object.keys(conversationsBySubject).map((subject) => (
-            <button key={subject} onClick={() => handleSubjectChange(subject)} className={subjectFilter === subject ? "active" : ""}>
-              <span>{subject}</span>
-              {messageCounts[subject] > 0 && <span className="count-badge">{messageCounts[subject]}</span>}
-            </button>
-          ))}
+          {Object.keys(conversationsBySubject).map((subject) => {
+            const userCount = getUserMessageCountsBySubject()[subject];
+            return (
+              <div key={subject} className="subject-filter-container">
+                <button className={`filter-btn ${subjectFilter === subject ? "active" : ""}`} onClick={() => handleSubjectChange(subject)}>
+                  {subject} ({userCount})
+                </button>
+                {conversationsBySubject[subject].length > 0 && (
+                  <button className="clear-subject-btn" onClick={() => handleClearSubjectMessages(subject)} title={`Clear all ${subject} messages`}>
+                    ×
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="messages-container">
@@ -460,6 +517,7 @@ export default function Home() {
           overflow: hidden;
           display: flex;
           flex-direction: column;
+          max-height: calc(100vh - 220px); /* Set a max height */
         }
 
         .messages-list {
@@ -469,34 +527,41 @@ export default function Home() {
           -webkit-overflow-scrolling: touch;
           scrollbar-width: thin;
           scrollbar-color: #cbd5e1 #f8fafc;
+          display: flex;
+          flex-direction: column; /* Ensure vertical stacking */
         }
 
         .messages-list ul {
           list-style-type: none;
           padding: 0;
           margin: 0;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
         }
 
         .message {
           margin-bottom: 16px;
           max-width: 80%;
-          clear: both;
           position: relative;
           animation: fadeIn 0.3s ease;
+          display: flex;
+          flex-direction: column;
         }
 
         .message.user {
-          float: right;
+          align-self: flex-end;
+          margin-left: auto; /* Properly align to the right */
         }
 
         .message.ai {
-          float: left;
+          align-self: flex-start;
+          margin-right: auto; /* Properly align to the left */
         }
 
         .message-content {
           padding: 12px 16px;
           border-radius: 12px;
-          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
           line-height: 1.5;
         }
 
@@ -504,12 +569,18 @@ export default function Home() {
           background-color: #1a56db;
           color: white;
           border-bottom-right-radius: 2px;
+          border-top-right-radius: 8px;
+          border-top-left-radius: 12px;
+          border-bottom-left-radius: 12px;
         }
 
         .ai .message-content {
           background-color: #f3f4f6;
           color: #1f2937;
           border-bottom-left-radius: 2px;
+          border-top-right-radius: 12px;
+          border-top-left-radius: 8px;
+          border-bottom-right-radius: 12px;
         }
 
         .message-meta {
@@ -536,7 +607,6 @@ export default function Home() {
         }
 
         .subject-tag {
-          background: #f3f4f6;
           padding: 2px 8px;
           border-radius: 12px;
           font-size: 0.7rem;
@@ -763,6 +833,36 @@ export default function Home() {
           header nav {
             width: 100%;
             justify-content: flex-start;
+          }
+          .subject-filter-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+          }
+
+          .clear-subject-btn {
+            position: absolute;
+            top: -8px;
+            right: -6px;
+            width: 16px;
+            height: 16px;
+            background-color: #e5e7eb;
+            color: #6b7280;
+            border: none;
+            border-radius: 50%;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0;
+            line-height: 1;
+          }
+
+          .clear-subject-btn:hover {
+            background-color: #ef4444;
+            color: white;
           }
         }
       `}</style>
