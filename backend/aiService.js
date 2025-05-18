@@ -18,14 +18,22 @@ const initializeAI = () => {
 };
 
 // Function to get a response from the Gemini API
-async function generateResponse(question) {
+async function generateResponse(question, subject = "General") {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    
+    // Create a subject-specific prompt based on the selected filter
+    let enhancedPrompt = question;
+    if (subject && subject !== "General") {
+      enhancedPrompt = `You are an expert tutor specializing in ${subject}. 
+Please provide a comprehensive, ${subject}-focused response to this question: ${question}
+Make sure your answer thoroughly incorporates ${subject} concepts, terminology, and relevant examples. Give concise and clear explanations. Only give long answers if absolutely necessary.`;
+    }
 
-    // Call the Gemini API with the user's question
+    // Call the Gemini API with the enhanced prompt
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
-      contents: question,
+      contents: enhancedPrompt,
     });
 
     // Return the response text
