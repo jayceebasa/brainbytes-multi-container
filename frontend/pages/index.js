@@ -19,6 +19,8 @@ export default function Home() {
   const messageEndRef = useRef(null);
   const [subjectFilter, setSubjectFilter] = useState("");
   const [notification, setNotification] = useState("");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState(null);
 
   // Fetch messages and organize them by subject
   const fetchMessages = async () => {
@@ -111,12 +113,7 @@ export default function Home() {
   const handleSubjectChange = (newSubject) => {
     if (subjectFilter !== newSubject) {
       setSubjectFilter(newSubject);
-
-      // Show notification when changing subjects
-      if (newSubject) {
-        setNotification(`Switched to ${newSubject} conversation`);
-        setTimeout(() => setNotification(""), 3000);
-      }
+      // Notification code removed
     }
   };
 
@@ -129,33 +126,39 @@ export default function Home() {
   };
 
   const handleClearSubjectMessages = async (subject) => {
-    try {
-      // Confirm before deleting
-      if (!confirm(`Are you sure you want to clear all ${subject} messages? This cannot be undone.`)) {
-        return;
-      }
+    setSubjectToDelete(subject);
+    setIsDeleteModalOpen(true);
+  };
 
+  // New function to handle confirmed deletion
+  const confirmDelete = async () => {
+    try {
       setLoading(true);
 
       // Call API to delete messages for this subject
-      const response = await axios.delete(`http://localhost:3000/api/messages/subject/${subject}`);
+      const response = await axios.delete(`http://localhost:3000/api/messages/subject/${subjectToDelete}`);
 
       // Update the local state to remove the cleared messages
       setConversationsBySubject((prev) => ({
         ...prev,
-        [subject]: [], // Clear the messages for this subject
+        [subjectToDelete]: [], // Clear the messages for this subject
       }));
 
-      // Show notification
-      setNotification(`Cleared ${response.data.deletedCount} messages from ${subject}`);
+      // Show notification for successful deletion
+      setNotification(`Cleared ${response.data.deletedCount} messages from ${subjectToDelete}`);
       setTimeout(() => setNotification(""), 3000);
 
+      // Close modal
+      setIsDeleteModalOpen(false);
+      setSubjectToDelete(null);
       setLoading(false);
     } catch (error) {
       console.error("Error clearing messages:", error);
-      setNotification(`Error: Could not clear ${subject} messages`);
+      setNotification(`Error: Could not clear ${subjectToDelete} messages`);
       setTimeout(() => setNotification(""), 3000);
       setLoading(false);
+      setIsDeleteModalOpen(false);
+      setSubjectToDelete(null);
     }
   };
 
@@ -298,16 +301,23 @@ export default function Home() {
           {Object.keys(conversationsBySubject).map((subject) => {
             const userCount = getUserMessageCountsBySubject()[subject];
             return (
-              <div key={subject} className="subject-filter-container">
-                <button className={`filter-btn ${subjectFilter === subject ? "active" : ""}`} onClick={() => handleSubjectChange(subject)}>
-                  {subject} ({userCount})
-                </button>
+              <button key={subject} className={`filter-btn ${subjectFilter === subject ? "active" : ""}`} onClick={() => handleSubjectChange(subject)}>
+                <span className="filter-content">
+                  <span>{subject}</span>
+                  <span className="count-badge">{userCount}</span>
+                </span>
                 {conversationsBySubject[subject].length > 0 && (
-                  <button className="clear-subject-btn" onClick={() => handleClearSubjectMessages(subject)} title={`Clear all ${subject} messages`}>
-                    ×
-                  </button>
+                  <span
+                    className="clear-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearSubjectMessages(subject);
+                    }}
+                    title={`Clear all ${subject} messages`}>
+                    🗑️
+                  </span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -379,6 +389,26 @@ export default function Home() {
             {isTyping ? "Sending..." : "Send"}
           </button>
         </form>
+
+        {isDeleteModalOpen && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <div className="modal-icon">⚠️</div>
+                <h3>Delete Confirmation</h3>
+              </div>
+              <p>Are you sure you want to clear all {subjectToDelete} messages? This cannot be undone.</p>
+              <div className="modal-actions">
+                <button className="cancel-btn" onClick={() => setIsDeleteModalOpen(false)}>
+                  Cancel
+                </button>
+                <button className="delete-btn" onClick={confirmDelete}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <style jsx global>{`
@@ -823,7 +853,22 @@ export default function Home() {
           }
         }
 
-        @media (max-width: 480px) {
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          }
+
           header {
             flex-direction: column;
             align-items: flex-start;
@@ -834,10 +879,67 @@ export default function Home() {
             width: 100%;
             justify-content: flex-start;
           }
-          .subject-filter-container {
-            position: relative;
+          .filter-btn {
+            padding: 8px 16px;
+            background-color: #ffffff;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+          }
+
+          .filter-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+
+          .count-badge {
+            background-color: #e5e7eb;
+            color: #4b5563;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
+            min-width: 20px;
+          }
+
+          .filter-btn.active .count-badge {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: inherit;
+          }
+
+          .clear-icon {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            margin-left: 2px;
+          }
+
+          .clear-icon:hover {
+            opacity: 1;
+            background-color: rgba(239, 68, 68, 0.1);
+          }
+
+          .filter-btn.active .clear-icon {
+            color: white;
+          }
+
+          .filter-btn.active .clear-icon:hover {
+            background-color: rgba(255, 255, 255, 0.2);
           }
 
           .clear-subject-btn {
@@ -864,6 +966,143 @@ export default function Home() {
             background-color: #ef4444;
             color: white;
           }
+
+          
+
+          .modal {
+            background-color: white;
+            border-radius: 20px;
+            padding: 32px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.15);
+            animation: modalSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            transform-origin: center;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+          }
+
+          @keyframes modalSlideIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+
+          .modal-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+          }
+
+          .modal-icon {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 20px;
+            font-size: 1.5rem;
+            box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.05);
+          }
+
+          .modal h3 {
+            margin: 0;
+            color: #111827;
+            font-size: 1.4rem;
+            font-weight: 600;
+          }
+
+          .modal p {
+            margin-bottom: 32px;
+            color: #4b5563;
+            padding-left: 68px; /* Increased to align with larger icon */
+            line-height: 1.6;
+            font-size: 1.05rem;
+          }
+
+          .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 16px;
+          }
+
+          .cancel-btn {
+            padding: 12px 24px;
+            background-color: transparent;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+
+          .cancel-btn:hover {
+            background-color: #f3f4f6;
+            border-color: #d1d5db;
+          }
+
+          .delete-btn {
+            padding: 12px 24px;
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
+          }
+
+          .delete-btn:hover {
+            background-color: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.25);
+          }
+
+          .delete-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(239, 68, 68, 0.2);
+          }
+
+          /* Add responsive adjustments in your media queries */
+          @media (max-width: 480px) {
+            .modal {
+              padding: 24px;
+              max-width: 90%;
+            }
+
+            .modal-icon {
+              width: 40px;
+              height: 40px;
+              font-size: 1.25rem;
+              margin-right: 16px;
+            }
+
+            .modal p {
+              padding-left: 56px;
+              font-size: 1rem;
+            }
+
+            .modal-actions {
+              gap: 12px;
+            }
+
+            .cancel-btn,
+            .delete-btn {
+              padding: 10px 18px;
+              font-size: 0.9rem;
+            }
         }
       `}</style>
     </>

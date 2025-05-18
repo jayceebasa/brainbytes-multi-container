@@ -9,25 +9,39 @@ global.Response = fetch.Response;
 
 // Initialize the AI service
 const initializeAI = () => {
-  console.log('Gemini AI service initialized');
+  console.log("Gemini AI service initialized");
 
   // Check if the API key is available
   if (!process.env.GEMINI_API_KEY) {
-    console.warn('Warning: GEMINI_API_KEY environment variable not set. API calls may fail.');
+    console.warn("Warning: GEMINI_API_KEY environment variable not set. API calls may fail.");
   }
 };
 
-// Function to get a response from the Gemini API
 async function generateResponse(question, subject = "General") {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    
+
     // Create a subject-specific prompt based on the selected filter
     let enhancedPrompt = question;
     if (subject && subject !== "General") {
-      enhancedPrompt = `You are an expert tutor specializing in ${subject}. 
-Please provide a comprehensive, ${subject}-focused response to this question: ${question}
-Make sure your answer thoroughly incorporates ${subject} concepts, terminology, and relevant examples. Give concise and clear explanations. Only give long answers if absolutely necessary.`;
+      enhancedPrompt = `You are a friendly tutor who specializes in ${subject}. 
+Please answer this question in a conversational way: ${question}
+
+Guidelines:
+- Use a warm, casual tone like you're talking to a student face-to-face
+- Avoid using asterisks, bullet points, or other formatting symbols
+- Write in simple, flowing paragraphs rather than structured lists
+- Explain concepts in plain language a student would understand
+- Keep your answer concise but helpful`;
+    } else {
+      enhancedPrompt = `You are a friendly tutor. Please answer this question in a conversational way: ${question}
+
+Guidelines:
+- Use a warm, casual tone like you're talking to a student face-to-face
+- Avoid using asterisks, bullet points, or other formatting symbols
+- Write in simple, flowing paragraphs rather than structured lists
+- Explain concepts in plain language a student would understand
+- Keep your answer concise but helpful`;
     }
 
     // Call the Gemini API with the enhanced prompt
@@ -38,19 +52,19 @@ Make sure your answer thoroughly incorporates ${subject} concepts, terminology, 
 
     // Return the response text
     return {
-      response: response.text.trim()
+      response: response.text.trim(),
     };
   } catch (error) {
     console.error("Error calling Gemini API:", error);
 
     // Return a generic error response
     return {
-      response: "I'm sorry, I couldn't process your request at the moment. Please try again later."
+      response: "I'm sorry, I couldn't process your request at the moment. Please try again later.",
     };
   }
 }
 
 module.exports = {
   initializeAI,
-  generateResponse
+  generateResponse,
 };
