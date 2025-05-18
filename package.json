@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@google/genai": "^0.14.1",
+    "node-fetch": "^3.3.2"
+  }
+}
