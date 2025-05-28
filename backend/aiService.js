@@ -1,4 +1,5 @@
-const { GoogleGenAI } = require("@google/genai");
+require("dotenv").config(); // Load environment variables from .env file
+const { InferenceClient } = require("@huggingface/inference");
 const fetch = require("node-fetch");
 
 // Polyfill Fetch API globally
@@ -9,17 +10,17 @@ global.Response = fetch.Response;
 
 // Initialize the AI service
 const initializeAI = () => {
-  console.log("Gemini AI service initialized");
+  console.log("Hugging Face AI service initialized");
 
-  // Check if the API key is available
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("Warning: GEMINI_API_KEY environment variable not set. API calls may fail.");
+  if (!process.env.HUGGINGFACE_TOKEN) {
+    console.warn("Warning: HUGGINGFACE_TOKEN environment variable not set. API calls may fail.");
   }
 };
 
+// Function to get response from Hugging Face conversational model
 async function generateResponse(question, subject = "General") {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const client = new InferenceClient(process.env.HUGGINGFACE_TOKEN);
 
     // Create a subject-specific prompt based on the selected filter
     let enhancedPrompt = question;
@@ -44,22 +45,34 @@ Guidelines:
 - Keep your answer concise but helpful`;
     }
 
-    // Call the Gemini API with the enhanced prompt
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: enhancedPrompt,
+    // Call the Hugging Face API with the enhanced prompt
+    const chatCompletion = await client.chatCompletion({
+      provider: "nebius",
+      model: "deepseek-ai/DeepSeek-V3-0324",
+      messages: [
+        {
+          role: "user",
+          content: enhancedPrompt,
+        },
+      ],
     });
 
-    // Return the response text
-    return {
-      response: response.text.trim(),
-    };
+    if (chatCompletion && chatCompletion.choices && chatCompletion.choices[0]) {
+      return {
+        category: "open-ended",
+        response: chatCompletion.choices[0].message.content.trim(),
+      };
+    } else {
+      return {
+        category: "error",
+        response: "I'm sorry, I couldn't understand your question. Please try again.",
+      };
+    }
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
-
-    // Return a generic error response
+    console.error("Error calling Hugging Face API:", error);
     return {
-      response: "I'm sorry, I couldn't process your request at the moment. Please try again later.",
+      category: "error",
+      response: "I'm sorry, something went wrong. Please try again later.",
     };
   }
 }
